@@ -12,7 +12,7 @@
     </form>
 
     @if($count > 0)
-        <h6>About {{ $count }} results</h6>
+        <h5>About {{ $count }} results</h5>
         
         @foreach($results as $result)
                 {{ $result['domain'] }}

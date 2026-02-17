@@ -7,6 +7,7 @@ use App\Models\Page;
 use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Facades\Log;
+use LanguageDetection\Language;
 
 class CrawlerService
 {
@@ -89,21 +90,26 @@ class CrawlerService
     private function extractContent(Crawler $crawler): string
     {
         try {
-            // Remove script and style tags
-            $crawler->filter('script, style, nav, footer, header')
-                ->each(fn($node) => $node->getNode(0)?->parentNode
-                    ->removeChild($node->getNode(0)));
+            $html = $crawler->outerHtml();
             
-            // Get body text
-            $text = $crawler->filter('body')->text();
+            $readability = new Readability(
+                new Configuration([
+                    'fixRelativeURLs' => true,
+                    'originalURL' => $crawler->getUri(),
+                ])
+            );
             
-            // Clean up whitespace
-            $text = preg_replace('/\s+/', ' ', $text);
+            $readability->parse($html);
             
-            return trim(substr($text, 0, 50000)); // Limit content size
+            // Get clean article text
+            $content = $readability->getContent();
+            $textContent = strip_tags($content);
+            
+            return trim(substr($textContent, 0, 50000));
             
         } catch (\Exception $e) {
-            return '';
+            // Fallback to basic extraction
+            return $this->extractContentBasic($crawler);
         }
     }
 
@@ -188,5 +194,14 @@ class CrawlerService
         }
         
         return true;
+    }
+
+    private function detectLanguage(string $text): string
+    {
+        $ld = new Language(['en', 'de', 'fr', 'es', 'it', 'pt', 'ru', 'zh', 'ja']);
+        
+        $result = $ld->detect(substr($text, 0, 1000));
+        
+        return $result->bestResults()->close() ?? 'unknown';
     }
 }
