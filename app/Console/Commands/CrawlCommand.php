@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Url;
 use App\Jobs\CrawlUrlJob;
 use Illuminate\Console\Command;
+use App\Services\RobotsService;
 
 class CrawlCommand extends Command
 {
@@ -27,6 +28,25 @@ class CrawlCommand extends Command
         } else {
             // Process pending URLs
             $urls = Url::where('status', 'pending')->limit(10)->get();
+            $urls = Url::where('status', 'pending')
+                ->orderBy('priority', 'desc')
+                ->orderBy('created_at')
+                ->limit(100)
+                ->get();
+    
+            foreach ($urls as $url) {
+                // Check robots.txt before dispatching
+                if (!app(RobotsService::class)->canCrawl($url->url)) {
+                    $url->update([
+                        'status' => 'skipped',
+                        'robots_allowed' => false,
+                    ]);
+                    continue;
+                }
+                
+                CrawlUrlJob::dispatch($url)
+                    ->onQueue("crawl-{$url->priority}");
+            }
             
             if ($urls->isEmpty()) {
                 $this->warn('No pending URLs to crawl.');

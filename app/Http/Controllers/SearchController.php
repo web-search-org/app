@@ -18,13 +18,16 @@ class SearchController extends Controller
 
     public function show(Request $request)
     {
-        $query = $request->input('q', '');
-        $results = $this->searchService->search($query);
-        
+        $query = (string) $request->input('q', '');
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
+
+        $results = $this->searchService->search($query, $page, $perPage);
+
         return view('search.show', [
             'query' => $query,
-            'results' => $results,
-            'count' => $results->count(),
+            'results' => $results, // LengthAwarePaginator
+            'count' => $results->total(),
         ]);
     }
 }
